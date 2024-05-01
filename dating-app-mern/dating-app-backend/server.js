@@ -6,8 +6,7 @@ import Cards from './dbCards.js'
 //App Config
 const app = express()
 const port = process.env.PORT || 8001
-const connection_url = 'mongodb+srv://admin:your_password@cluster0.lggjc.mongodb.net/datingDB?retryWrites=true&w=majority'
-
+const connection_url = 'mongodb+srv://jrmusicman333:0987654321@webapi.gja3bzn.mongodb.net/?retryWrites=true&w=majority&appName=webapi'
 //Middleware
 app.use(express.json())
 app.use(Cors())
