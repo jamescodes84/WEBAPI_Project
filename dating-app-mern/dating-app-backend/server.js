@@ -18,7 +18,7 @@ mongoose.connect(connection_url, {
 });
 
 // User Routes
-app.post('/users', (req, res) => {
+app.post('/user', (req, res) => {
     User.create(req.body, (err, user) => {
         if (err) return res.status(500).send(err);
         res.status(201).send(user);
@@ -26,28 +26,71 @@ app.post('/users', (req, res) => {
 });
 
 app.get('/users', (req, res) => {
-    User.find({}, (err, users) => {
-        if (err) return res.status(500).send(err);
-        res.status(200).send(users);
+    User.find({})
+        .sort({ firstName: 1 }) // Assuming you're still sorting by firstName
+        .exec((err, users) => {
+            if (err) {
+                return res.status(500).send(err);
+            }
+            // Map through each user and reconstruct the object with address last
+            const formattedUsers = users.map(user => {
+                const { address, _id, firstName, lastName, email, phone, __v } = user.toObject();
+                return { _id, firstName, lastName, email, phone, __v, address };
+            });
+            res.status(200).send(formattedUsers);
+        });
+});
+
+
+app.get('/user/:id', (req, res) => {
+    User.findById(req.params.id)
+        .exec((err, user) => {
+            if (err) {
+                console.error('Error fetching user:', err);
+                return res.status(500).send(err);
+            }
+            if (!user) {
+                return res.status(404).send({ message: 'User not found' });
+            }
+            // Reformat the user object to place the address last
+            const { address, _id, firstName, lastName, email, phone, __v } = user.toObject();
+            const reorderedUser = { _id, firstName, lastName, email, phone, __v, address };
+            res.status(200).send(reorderedUser);
+        });
+});
+
+
+app.put('/user/:id', (req, res) => {
+    User.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true }, (err, user) => {
+        if (err) {
+            console.error('Update error:', err);
+            return res.status(500).send(err);
+        }
+        if (!user) {
+            return res.status(404).send({ message: 'User not found' });
+        }
+        // Reconstruct the user object to place address last
+        const { address, _id, firstName, lastName, email, phone, __v } = user.toObject();
+        const reorderedUser = { _id, firstName, lastName, email, phone, __v, address };
+        res.status(200).send(reorderedUser);
     });
 });
 
-app.put('/users/:id', (req, res) => {
-    User.findOneAndUpdate({ email: req.params.email }, req.body, { new: true, overwrite: true }, (err, user) => {
-        if (err) return res.status(500).send(err);
-        res.status(200).send(user);
-    });
-});
 
-app.delete('/users/:id', (req, res) => {
+app.delete('/user/:id', (req, res) => {
     User.findByIdAndDelete(req.params.id, (err, user) => {
-        if (err) return res.status(500).send(err);
-        res.status(204).send('User deleted');
+        if (err) {
+            return res.status(500).send(err);
+        }
+        if (!user) {
+            return res.status(404).send({ message: 'User not found' });
+        }
+        res.status(200).send('User deleted');
     });
 });
 
 // Business Routes
-app.post('/businesses', (req, res) => {
+app.post('/business', (req, res) => {
     Business.create(req.body, (err, business) => {
         if (err) return res.status(500).send(err);
         res.status(201).send(business);
@@ -56,19 +99,29 @@ app.post('/businesses', (req, res) => {
 
 app.get('/businesses', (req, res) => {
     Business.find({}, (err, businesses) => {
-        if (err) return res.status(500).send(err);
-        res.status(200).send(businesses);
+        if (err) {
+            return res.status(500).send(err);
+        }
+
+        // Map through each business and reorder the properties
+        const reformattedBusinesses = businesses.map(business => {
+            const { _id, name, phone, email, website, registrationDate, __v, address } = business.toObject();
+            return { name, _id, phone, email, website, registrationDate, __v, address };
+        });
+
+        res.status(200).send(reformattedBusinesses);
     });
 });
 
-app.put('/businesses/:id', (req, res) => {
+
+app.put('/business/:id', (req, res) => {
     Business.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true, overwrite: true }, (err, business) => {
         if (err) return res.status(500).send(err);
         res.status(200).send(business);
     });
 });
 
-app.delete('/businesses/:id', (req, res) => {
+app.delete('/business/:id', (req, res) => {
     Business.findByIdAndDelete(req.params.id, (err, business) => {
         if (err) return res.status(500).send(err);
         res.status(204).send('Business deleted');
