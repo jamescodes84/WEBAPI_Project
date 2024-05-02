@@ -103,10 +103,19 @@ app.get('/businesses', (req, res) => {
             return res.status(500).send(err);
         }
 
-        // Map through each business and reorder the properties
+        // Map through each business and reorder the properties with _id first
         const reformattedBusinesses = businesses.map(business => {
             const { _id, name, phone, email, website, registrationDate, __v, address } = business.toObject();
-            return { name, _id, phone, email, website, registrationDate, __v, address };
+            return { 
+                _id,  // Placing _id first
+                name, 
+                phone, 
+                email, 
+                website, 
+                registrationDate, 
+                __v, 
+                address  // Keeping address last as previously desired
+            };
         });
 
         res.status(200).send(reformattedBusinesses);
@@ -114,19 +123,64 @@ app.get('/businesses', (req, res) => {
 });
 
 
-app.put('/business/:id', (req, res) => {
-    Business.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true, overwrite: true }, (err, business) => {
-        if (err) return res.status(500).send(err);
-        res.status(200).send(business);
+app.get('/business/:id', (req, res) => {
+    Business.findById(req.params.id, (err, business) => {
+        if (err) {
+            console.error('Error fetching business:', err);
+            return res.status(500).send(err);
+        }
+        if (!business) {
+            return res.status(404).send({ message: 'Business not found' });
+        }
+        
+        // Reconstruct the business object to place _id first
+        const { _id, name, phone, email, website, registrationDate, __v, address } = business.toObject();
+        const reorderedBusiness = { 
+            _id,
+            name, 
+            phone, 
+            email, 
+            website, 
+            registrationDate, 
+            __v, 
+            address 
+        };
+        
+        res.status(200).send(reorderedBusiness);
     });
 });
 
+
+
+app.put('/business/:id', (req, res) => {
+    Business.findOneAndUpdate(
+        { _id: req.params.id }, 
+        { $set: req.body },  // Use $set to update only the provided fields
+        { new: true, runValidators: true },  // Ensure new document is returned and validators run
+        (err, business) => {
+            if (err) return res.status(500).send(err);
+            if (!business) {
+                return res.status(404).send({ message: 'Business not found' });
+            }
+            res.status(200).send(business);
+        }
+    );
+});
+
+
 app.delete('/business/:id', (req, res) => {
     Business.findByIdAndDelete(req.params.id, (err, business) => {
-        if (err) return res.status(500).send(err);
-        res.status(204).send('Business deleted');
+        if (err) {
+            console.error('Error deleting business:', err);
+            return res.status(500).send(err);
+        }
+        if (!business) {
+            return res.status(404).send({ message: 'Business not found' });
+        }
+        res.status(200).send({ message: 'Business successfully deleted' });
     });
 });
+
 
 // Event Routes
 app.post('/events', (req, res) => {
