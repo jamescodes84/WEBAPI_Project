@@ -27,19 +27,21 @@ app.post('/user', (req, res) => {
 
 app.get('/users', (req, res) => {
     User.find({})
-        .sort({ firstName: 1 }) // Assuming you're still sorting by firstName
+        .sort({ firstName: 1 }) // Continue sorting by firstName
+        .populate('events') // Populate the 'events' field with the Event documents
         .exec((err, users) => {
             if (err) {
                 return res.status(500).send(err);
             }
-            // Map through each user and reconstruct the object with address last
+            // Map through each user and reformat the object with the address and events listed
             const formattedUsers = users.map(user => {
-                const { address, _id, firstName, lastName, email, phone, __v } = user.toObject();
-                return { _id, firstName, lastName, email, phone, __v, address };
+                const { address, _id, firstName, lastName, email, phone, __v, birthdate, events } = user.toObject();
+                return { _id, firstName, lastName, email, phone, birthdate, events, __v, address }; // Include events and place address last
             });
             res.status(200).send(formattedUsers);
         });
 });
+
 
 
 app.get('/user/:id', (req, res) => {
@@ -70,12 +72,11 @@ app.put('/user/:id', (req, res) => {
             return res.status(404).send({ message: 'User not found' });
         }
         // Reconstruct the user object to place address last
-        const { address, _id, firstName, lastName, email, phone, __v } = user.toObject();
-        const reorderedUser = { _id, firstName, lastName, email, phone, __v, address };
+        const { address, _id, firstName, lastName, email, phone, __v, events } = user.toObject();
+        const reorderedUser = { _id, firstName, lastName, email, phone, __v, address, events };
         res.status(200).send(reorderedUser);
     });
 });
-
 
 app.delete('/user/:id', (req, res) => {
     User.findByIdAndDelete(req.params.id, (err, user) => {
@@ -91,28 +92,43 @@ app.delete('/user/:id', (req, res) => {
 
 // Business Routes
 app.post('/business', (req, res) => {
-    Business.create(req.body, (err, business) => {
-        if (err) return res.status(500).send(err);
+    // Prepare the new business data with an empty events list
+    const newBusinessData = {
+        ...req.body,   // Spread the existing body to maintain other fields
+        events: []     // Initialize the events list as empty
+    };
+
+    // Create a new business entry in the database
+    Business.create(newBusinessData, (err, business) => {
+        if (err) {
+            // Handle errors that occur during the creation, like validation errors or MongoDB operational errors
+            return res.status(500).send(err);
+        }
+        // If the business is successfully created, return the new business data with a 201 status code
         res.status(201).send(business);
     });
 });
 
+
 app.get('/businesses', (req, res) => {
-    Business.find({}, (err, businesses) => {
+    Business.find({})
+    .populate('events') // This line is added to include event details referenced by the 'events' field
+    .exec((err, businesses) => {
         if (err) {
             return res.status(500).send(err);
         }
 
         // Map through each business and reorder the properties with _id first
         const reformattedBusinesses = businesses.map(business => {
-            const { _id, name, phone, email, website, registrationDate, __v, address } = business.toObject();
+            const { _id, name, phone, email, website, registrationDate, __v, address, events } = business.toObject();
             return { 
                 _id,  // Placing _id first
                 name, 
                 phone, 
                 email, 
                 website, 
-                registrationDate, 
+                registrationDate,
+                events, // Including events in the response
                 __v, 
                 address  // Keeping address last as previously desired
             };
@@ -121,6 +137,7 @@ app.get('/businesses', (req, res) => {
         res.status(200).send(reformattedBusinesses);
     });
 });
+
 
 
 app.get('/business/:id', (req, res) => {
@@ -153,19 +170,26 @@ app.get('/business/:id', (req, res) => {
 
 
 app.put('/business/:id', (req, res) => {
+    // Using findOneAndUpdate to update the business document
     Business.findOneAndUpdate(
-        { _id: req.params.id }, 
-        { $set: req.body },  // Use $set to update only the provided fields
-        { new: true, runValidators: true },  // Ensure new document is returned and validators run
+        { _id: req.params.id }, // filter by Document ID
+        { $set: req.body }, // update the fields provided in req.body
+        { new: true, runValidators: true }, // options to return the updated document and run validators
         (err, business) => {
-            if (err) return res.status(500).send(err);
+            if (err) {
+                // Handle any errors during the update
+                return res.status(500).send(err);
+            }
             if (!business) {
+                // Handle case where no business was found for the given ID
                 return res.status(404).send({ message: 'Business not found' });
             }
+            // Send the updated business document as a response
             res.status(200).send(business);
         }
     );
 });
+
 
 
 app.delete('/business/:id', (req, res) => {
@@ -183,12 +207,33 @@ app.delete('/business/:id', (req, res) => {
 
 
 // Event Routes
+
 app.post('/events', (req, res) => {
+    const { maxAttendees, attendees } = req.body;
+
+    // Check if the initial number of attendees exceeds the maximum allowed
+    if (attendees && maxAttendees && attendees.length > maxAttendees) {
+        return res.status(400).send({
+            message: "Number of initial attendees cannot exceed the maximum allowed."
+        });
+    }
+
+    // Create a new event
     Event.create(req.body, (err, event) => {
-        if (err) return res.status(500).send(err);
-        res.status(201).send(event);
+        if (err) {
+            return res.status(500).send(err);
+        }
+        // Retrieve and send the updated list of events
+        Event.find({}, (err, events) => {
+            if (err) {
+                return res.status(500).send(err);
+            }
+            res.status(201).send(events); // Send the full list of events including the newly created one
+        });
     });
 });
+
+
 
 app.get('/events', (req, res) => {
     Event.find({}).populate('business').populate('attendees').exec((err, events) => {
@@ -198,11 +243,17 @@ app.get('/events', (req, res) => {
 });
 
 app.put('/events/:id', (req, res) => {
-    Event.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true, overwrite: true }, (err, event) => {
-        if (err) return res.status(500).send(err);
+    Event.findOneAndUpdate({ _id: req.params.id }, req.body, { new: true }, (err, event) => {
+        if (err) {
+            return res.status(500).send(err);
+        }
+        if (!event) {
+            return res.status(404).send({ message: "Event not found" });
+        }
         res.status(200).send(event);
     });
 });
+
 
 app.delete('/events/:id', (req, res) => {
     Event.findByIdAndDelete(req.params.id, (err, event) => {

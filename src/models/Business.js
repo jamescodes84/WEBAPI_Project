@@ -1,6 +1,7 @@
-//const mongoose = require('mongoose');
 import mongoose from 'mongoose';
-const businessSchema = new mongoose.Schema({
+const { Schema } = mongoose;
+
+const businessSchema = new Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -23,7 +24,11 @@ const businessSchema = new mongoose.Schema({
   registrationDate: {
     type: Date,
     default: Date.now
-  }
+  },
+  events: [{ 
+    type: Schema.Types.ObjectId, 
+    ref: 'Event' 
+  }]
 });
 
 const Business = mongoose.model('Business', businessSchema);
