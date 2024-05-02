@@ -258,7 +258,7 @@ app.put('/events/:id', (req, res) => {
 app.delete('/events/:id', (req, res) => {
     Event.findByIdAndDelete(req.params.id, (err, event) => {
         if (err) return res.status(500).send(err);
-        res.status(204).send('Event deleted');
+        res.status(200).send('Event deleted');
     });
 });
 
