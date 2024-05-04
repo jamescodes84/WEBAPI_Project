@@ -6,7 +6,7 @@ import Business from './models/Business.js';
 import Event from './models/Event.js';
 
 const app = express();
-const port = process.env.PORT || 8001;
+const port = process.env.PORT || 8002;
 const connection_url = 'mongodb+srv://jrmusicman333:0987654321@webapi.gja3bzn.mongodb.net/?retryWrites=true&w=majority&appName=webapi';
 
 app.use(express.json());
